@@ -1,0 +1,112 @@
+
+setwd("C:/Users/vishn/Desktop/Titanic Survivor Prediction Model")
+train <-read.csv("C:/Users/vishn/Desktop/Titanic Survivor Prediction Model/train.csv")
+test<-read.csv("C:/Users/vishn/Desktop/Titanic Survivor Prediction Model/test.csv")
+View(train)
+View(test)
+test$Survived <- NA
+combine <- rbind(train, test)
+combine[,2] <- sapply(combine[,2], as.factor)
+combine$Pclass <- factor(combine$Pclass, levels = c("3", "2", "1"), ordered = TRUE)
+combine[,7] <- sapply(combine[,7], as.numeric)
+combine[,8] <- sapply(combine[,8], as.numeric)
+
+summary(combine$Age)
+combine$Age[is.na(combine$Age)] <- median(combine$Age, na.rm = TRUE)
+
+
+summary(combine$Embarked)
+which(combine$Embarked == '')
+combine$Embarked[c(62, 830)] = "S"
+# Replace only missing fare with the median fare
+summary(combine$Fare)
+which(is.na(combine$Fare))
+combine$Fare[1044] <- median(combine$Fare, na.rm = TRUE)
+# Look at the combined data set to ensure format is correct
+View(combine)
+str(combine)
+train <- combine[1:891,]
+test <- data.frame(combine[892:1309,],row.names = NULL)
+##############################################################################
+# Build a classification tree to classify Survival values using training data
+attach(combine)
+install.packages('tree')
+library(tree)
+tree.survival <- tree(Survived ~ Pclass + Sex
+                      + Age + SibSp + Parch
+                      + Fare + Embarked, combine, subset = 1:891)
+summary(tree.survival)
+tree.survival
+plot(tree.survival)
+text(tree.survival, pretty = 0)
+# Make predictions of Survival values in test data
+tree.predict <- predict(tree.survival, newdata = combine[892:1309,], type = "class")
+# Create a csv file to submit to Kaggle
+submit <- data.frame(PassengerId = test$PassengerId, Survived = tree.predict)
+write.csv(submit, file = "firstclasstree.csv", row.names = FALSE)
+# Submission result 0.79426
+##############################################################################
+# Conduct cross-validation and cost complexity pruning
+set.seed(100)
+cv.survival <- cv.tree(tree.survival, FUN = prune.misclass)
+names(cv.survival)
+cv.survival
+par(mfrow =c(1,2))
+# Plot cross-validation error as a function of tree size
+plot(cv.survival$size ,cv.survival$dev ,type="b")
+# Plot cross-validation error as a function of the cost complexity parameter, k
+plot(cv.survival$k ,cv.survival$dev ,type="b")
+# Form the pruned survival classification tree
+prune.survival <- prune.misclass(tree.survival, best = 8)
+summary(prune.survival)
+prune.survival
+plot(prune.survival)
+text(prune.survival, pretty = 0)
+37
+# Make predictions of Survival values in test data
+tree.predict <- predict (prune.survival, newdata = combine[892:1309,], type = "class")
+# Create a csv file to submit to Kaggle
+submit0 <- data.frame(PassengerId = test$PassengerId, Survived = tree.predict)
+write.csv(submit0, file = "firstprunedtree.csv", row.names = FALSE)
+# Submission result 0.79426
+##############################################################################
+# Utilize bagging to classify Survival values using training data
+install.packages('randomForest')
+library(randomForest)
+set.seed (200)
+bag.survival <- randomForest(Survived ~ Pclass + Sex
+                             + Age + SibSp + Parch
+                             + Fare + Embarked, data = combine, subset = 1:891,
+                             mtry=7, importance =TRUE)
+bag.survival
+plot(bag.survival)
+# Make predictions of Survival values in test data
+yhat.bag <- predict(bag.survival, newdata = combine[892:1309,], type = "class")
+# Create a csv file to submit to Kaggle
+submit2 <- data.frame(PassengerId = test$PassengerId, Survived = yhat.bag)
+write.csv(submit2, file = "firstbaggedtree.csv", row.names = FALSE)
+# Submission result 0.76555
+# View the importance values of each variable
+importance(bag.survival)
+# Plot the importance values
+varImpPlot(bag.survival)
+##############################################################################
+# Utilize random forest to classify Survival values using training data
+set.seed (200)
+rf.survival <- randomForest(Survived ~ Pclass + Sex
+                            + Age + SibSp + Parch
+                            + Fare + Embarked, data = combine, subset = 1:891,
+                            importance =TRUE)
+rf.survival
+plot(rf.survival)
+38
+# Make predictions of Survival values in test data
+yhat.bag2 <- predict(rf.survival, newdata = combine[892:1309,], type = "class")
+# Create a csv file to submit to Kaggle
+submit3 <- data.frame(PassengerId = test$PassengerId, Survived = yhat.bag2)
+write.csv(submit3, file = "firstrandomforest.csv", row.names = FALSE)
+# Submission result 0.77033
+# View the importance values of each variable
+importance(rf.survival)
+# Plot the importance values
+varImpPlot(rf.survival)
